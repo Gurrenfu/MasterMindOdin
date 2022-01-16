@@ -65,16 +65,18 @@ class ComputerController
   # after each correct color it is removed to check for duplicate colors
   def get_pins(guess, solution)
     pins = []
+    guess_check_array = guess.clone
     solution_check_array = solution.clone
 
-    guess.each_with_index do |color, index|
+    guess_check_array.each_with_index do |color, index|
       if solution_check_array.include?(color) && solution_check_array[index] == color
           pins.push(PERFECT_PIN)
+          color = nil
           solution_check_array[index] = nil
       end
     end
 
-    guess.each do |color|
+    guess_check_array.each do |color|
       if solution_check_array.include?(color)
         pins.push(COLOR_ONLY_PIN)
         solution_check_array[solution_check_array.index(color)] = nil  # handle duplicate colors
