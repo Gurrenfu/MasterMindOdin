@@ -5,11 +5,35 @@ module GamePieces
   COLOR_ONLY_PIN = '~'
 end
 
+#check that inputs match a set of accepted values
+module UserInput
+  def self.get_input(message, valid_answers)
+    answer = nil
+    valid_input = false
+    until valid_input
+      puts message
+      answer = gets.chomp.delete(' ').upcase.split('')
+      valid_input = self.validate_input(answer, valid_answers)
+    end
+    answer
+  end
+
+  def self.validate_input(input, valid_answers)
+    if input.all? { |c| valid_answers.include?(c) }
+      true
+    else
+      puts 'Please check your input'
+      false
+    end
+  end
+end
+
 class HumanController
   include GamePieces
+  include UserInput
 
   def get_row
-    answer = get_input("Please Choose 4: #{COLORS.join(' ')}", COLORS)
+    answer = UserInput.get_input("Please Choose 4: #{COLORS.join(' ')}", COLORS)
     #ensure array of length 4 is returned
     if answer.length >= 4
       answer.shift(4)
@@ -21,33 +45,12 @@ class HumanController
     end
   end
 
-  def get_pins(_guess)
-    get_input("Please choose the pins: #{PERFECT_PIN} = correct, #{COLOR_ONLY_PIN} = color only",
-              [PERFECT_PIN, COLOR_ONLY_PIN]).shift(4)
+  def get_pins(_guess,_solution)
+    UserInput.get_input("Please choose the pins: #{PERFECT_PIN} = correct, #{COLOR_ONLY_PIN} = color only", [PERFECT_PIN, COLOR_ONLY_PIN]).shift(4)
   end
 
   def check_guess(_guess, _solution)
-    get_input('Is the guess correct? Y/N', %w[Y N]) == 'Y'
-  end
-
-  def get_input(message, valid_answers)
-    answer = nil
-    valid_input = false
-    until valid_input
-      puts message
-      answer = gets.chomp.delete(' ').upcase.split('')
-      valid_input = validate_input(answer, valid_answers)
-    end
-    answer
-  end
-
-  def validate_input(input, valid_answers)
-    if input.all? { |c| valid_answers.include?(c) }
-      true
-    else
-      puts 'Please check your input'
-      false
-    end
+    UserInput.get_input('Is the guess correct? Y/N', %w[Y N]).join == 'Y'
   end
 end
 
@@ -63,15 +66,23 @@ class ComputerController
   def get_pins(guess, solution)
     pins = []
     solution_check_array = solution.clone
+
     guess.each_with_index do |color, index|
+      if solution_check_array.include?(color) && solution_check_array[index] == color
+          pins.push(PERFECT_PIN)
+          solution_check_array[index] = nil
+      end
+    end
+
+    guess.each do |color|
       if solution_check_array.include?(color)
-        solution_check_array.index(color) == index ? pins.push(PERFECT_PIN) : pins.push(COLOR_ONLY_PIN)
-        solution_check_array[solution_check_array.index(color)] = nil # handle duplicate colors
+        pins.push(COLOR_ONLY_PIN)
+        solution_check_array[solution_check_array.index(color)] = nil  # handle duplicate colors
       end
     end
     pins
   end
-
+    
   def check_guess(guess, solution)
     guess == solution
   end
@@ -101,6 +112,7 @@ class Chooser
   end
 
   def set_solution
+    puts 'Setting Solution...'
     @solution = @controller.get_row
     @solution
   end
@@ -117,19 +129,17 @@ end
 class Board
   def initialize
     @board_data = Array.new { Array.new }
-    @board_pins = Array.new { Array.new }
   end
 
+  #show colors and coresponding pins
   def display_board
+    puts"========"
     @board_data.each_slice(2) { |row| puts "#{row[0].join('|')}    #{row[1].join(' ')}" }
+    puts"========"
   end
 
   def add_new_row(new_row)
     @board_data.push(new_row)
-  end
-
-  def add_new_pins(new_row)
-    @board_pins.push(new_row)
   end
 end
 
@@ -146,30 +156,54 @@ class GameManager
 
   def play
     game_over = false
-    p @chooser.set_solution
-    puts "Solution Set"
+    @current_round = 1
+    @chooser.set_solution
+    puts "\nRound: #{current_round}/#{@total_rounds}"
+
     until game_over
       new_guess = @guesser.do_guess
       @board.add_new_row(new_guess)
+      puts "Current Guess: #{new_guess.join('|')}"
       if @chooser.check_guess(new_guess)
         game_over = true
+        puts "\nGUESSER WINS!!"
         break
       else
         @board.add_new_row(@chooser.do_pins(new_guess))
         @current_round += 1
-        game_over = true if @current_round >= @total_rounds
+        if @current_round > @total_rounds
+          game_over = true 
+          puts "\nGAME OVER!!\nSolution: #{@chooser.solution.join('|')}"
+          break
+        end
       end
-      puts "\n"
+
+      puts "\nRound: #{current_round}/#{@total_rounds}"
       @board.display_board
     end
   end
 end
 
+
+close_game = false
 person = HumanController.new
 computer = ComputerController.new
+until close_game
+  puts "Let's play MasterMind"
 
-game_manager = GameManager.new(person, computer)
-game_manager.play
-# game_manager.board.add_new_row(%w[R B G Y W P])
+  selection = UserInput.get_input('Are you the Guesser or Chooser: G C ?', %w[G C]).join
+  if selection == 'G'
+    game_manager = GameManager.new(person, computer)
+  else
+    game_manager = GameManager.new(computer, person)
+  end
+
+  game_manager.play
+
+  quit = UserInput.get_input("\n Play Again: Y/N  ?", %w[Y N]).join
+  close_game = (quit == 'N')
+end
+
+puts "\nTHANKS FOR PLAYING"
 
 
